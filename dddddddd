@@ -1,0 +1,210 @@
+"use client";
+
+import React, { Suspense, useEffect, useMemo } from "react";
+import { decodeJwt } from "@/@core/utils/decodeJwt";
+import { signIn, useSession } from "next-auth/react";
+import { toast } from "react-toastify";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+
+import Head from "next/head";
+import CircularSpinner from "@/components/ui/Loaders/CircularSpinner";
+import Loader from "@/components/BlogComponent/Loader";
+import { API_ROUTES } from "@/@core/utils/apiRoutes";
+
+const Login = () => {
+  return (
+    <>
+      <Suspense fallback={<Loader />}>
+        <LoginComponent />
+      </Suspense>
+    </>
+  );
+};
+
+const LoginComponent = () => {
+  const searchParams = useSearchParams();
+  const token = searchParams.get("user-token");
+
+  async function autoLogin(storedEmail: any) {
+    if (storedEmail && !session) {
+      (async () => {
+        const res = await signIn("credentials", {
+          redirect: false,
+          email: storedEmail,
+          user_name: storedUserName,
+          user_password: storedUserPassword,
+        });
+
+        if (res?.error) {
+          toast.error(res.error);
+          router.push("/login");
+        } else {
+          if (res?.url) router.push(res.url);
+          toast.success("Logged in automatically!");
+        }
+      })();
+    }
+  }
+
+  async function verifyToken(token: any) {
+    const apiUrl = `${API_ROUTES.VERIFY_JWT}`;
+
+    console.log("apiUrlapiUrl", apiUrl);
+
+    const response = await fetch(`${apiUrl}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ token }),
+    });
+
+    const result = await response.json();
+
+    if (result.decoded) {
+      const emailValue = result.decoded?.email;
+      console.log("Token verified:", emailValue);
+      if (emailValue) {
+        autoLogin(emailValue);
+      }
+    } else {
+      console.error("Verification failed:", result.error);
+      toast.error("Invalid user token detected");
+      router.push("/login");
+    }
+  }
+
+  verifyToken(token);
+
+  const router = useRouter();
+  const { data: session } = useSession();
+
+  const storedUserName = "storedUser_Password";
+  const storedUserPassword = "storedUser_Password";
+
+  // Effect to handle redirect based on session state
+  useEffect(() => {
+    if (session) {
+      if (session.user.is_onboarded && session.user.is_domain === "verified") {
+        router.push("/dashboard/dashboard");
+      } else if (session.user.is_domain === "not_verified") {
+        router.push("/dashboard/domain");
+      } else {
+        router.push("/dashboard/add-domain");
+      }
+    }
+  }, [session, router]);
+
+  return (
+    <>
+      <Head>
+        <meta name="robots" content="index, follow" />
+      </Head>
+      <div className="login-outer">
+        <div className="container-fluid">
+          <div className="row">
+            <div className="col-xl-6 col-lg-6 col-md-12 imageArea">
+              <div className="imageSection">
+                <Link href="/">
+                  <img
+                    src="/assets/images/logo-white-blue.svg"
+                    alt="yourDMARC's logo in white"
+                    className="loginImage pointer"
+                    loading="lazy"
+                    width="auto"
+                    height="auto"
+                  />
+                </Link>
+                <h2>Welcome to YOUR DMARC</h2>
+                <p>
+                  Securely access user&apos;s YOUR DMARC dashboard to view their
+                  email compliance. Click on Get started to access user profile.
+                </p>
+              </div>
+            </div>
+            <div className="col-xl-6 col-lg-6 col-md-12 formArea">
+              <div className="formInner d-flex align-items-center justify-content-center">
+                <span className="d-block mb-5">
+                  <CircularSpinner />
+                </span>
+                <h5 className="mt-5">
+                  We are authenticating user please wait for a while{" "}
+                </h5>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+};
+
+export default Login;
+
+
+src\app\(auth)\login-user\page.tsx
+
+
+-----------------------------
+
+ VERIFY_JWT: "/api/verifyJWT",
+  CHECK_PROXY: "/api/checkProxy",
+
+
+
+  ---------------------------------
+
+
+src\app\api\verifyJWT
+
+
+route.js
+
+  import jwt from "jsonwebtoken";
+
+// API route for JWT verification
+export async function POST(request) {
+  const { token } = await request.json(); // Parse the request body to get the token
+
+  const jwtKey = process.env.JWT_SECRET_KEY; // Ensure the secret key is server-side only
+
+  // Check if token is provided
+  if (!token) {
+    return new Response(JSON.stringify({ message: "Token is required" }), {
+      status: 400,
+    });
+  }
+
+  // Check if the JWT secret key is available
+  if (!jwtKey) {
+    return new Response(
+      JSON.stringify({
+        message: "Server configuration error: JWT secret is not defined",
+      }),
+      {
+        status: 500,
+      }
+    );
+  }
+
+  try {
+    // Verify the JWT token
+    const decoded = jwt.verify(token, jwtKey);
+    return new Response(JSON.stringify({ decoded }), { status: 200 });
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ message: `JWT verification error: ${error.message}` }),
+      { status: 401 }
+    );
+  }
+}
+
+
+
+
+
+
+
+
+
